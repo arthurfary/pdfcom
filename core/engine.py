@@ -1,10 +1,8 @@
 """
 Orchestrates comparators and builds the final ComparisonReport.
 """
-
 import sys
 import os
-
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import logging
@@ -39,7 +37,9 @@ class ComparisonEngine:
         self._validate_files(pdf_a, pdf_b)
 
         targets = (
-            {k: v for k, v in self._comparators.items() if k in comparator_ids} if comparator_ids else self._comparators
+            {k: v for k, v in self._comparators.items() if k in comparator_ids}
+            if comparator_ids
+            else self._comparators
         )
         if not targets:
             raise RuntimeError("No comparators available to run.")
@@ -55,7 +55,9 @@ class ComparisonEngine:
                 logger.exception("Comparator '%s' failed.", cid)
 
         if report.results:
-            report.overall_similarity = sum(r.similarity for r in report.results) / len(report.results)
+            report.overall_similarity = sum(r.similarity for r in report.results) / len(
+                report.results
+            )
 
         return report
 

@@ -1,6 +1,6 @@
 # PDF Comparator
 
-Modular PDF comparison tool. Compares two PDFs across multiple dimensions (text, image, ADA) and outputs a structured JSON report with exact diff locations — ready for GUI overlay rendering.
+Modular PDF comparison tool. Compares two PDFs across multiple dimensions and outputs a structured JSON report with **exact bounding-box coordinates** for every diff — ready for GUI highlight overlays.
 
 ## Structure
 
@@ -17,7 +17,7 @@ pdf_comparator/
 │   └── results.py               ← Diff, Location, ComparatorResult, ComparisonReport
 │
 ├── comparators/
-│   ├── text_comparator.py       ← ✅ implemented (pdfplumber + SequenceMatcher)
+│   ├── text_comparator.py       ← ✅ pdfminer.six – per-block text + position diff
 │   ├── image_comparator.py      ← 🔲 stub
 │   └── ada_comparator.py        ← 🔲 stub
 │
@@ -30,15 +30,23 @@ pdf_comparator/
 ```bash
 pip install -r requirements.txt
 
-# print JSON report to stdout
 python main.py doc_a.pdf doc_b.pdf
-
-# save to file
 python main.py doc_a.pdf doc_b.pdf --out report.json
-
-# run specific comparators only
 python main.py doc_a.pdf doc_b.pdf --comparators text
 ```
+
+## How text placement works
+
+pdfminer.six parses PDF content streams and returns `LTTextBox` objects, each
+with exact `(x0, y0, x1, y1)` coordinates in PDF user-space (origin = bottom-left,
+units = points).
+
+The comparator:
+1. Extracts all `LTTextBox` blocks per page from both PDFs.
+2. Matches corresponding blocks by spatial position (10-pt grid bucket).
+3. Diffs matched text with `SequenceMatcher`; unmatched blocks become ADDED/REMOVED.
+4. Stores raw `bbox_a` / `bbox_b` tuples in `payload` and normalised (0–1) coords
+   in `location_a` / `location_b` — both are available for rendering.
 
 ## Output
 
@@ -54,10 +62,16 @@ python main.py doc_a.pdf doc_b.pdf --comparators text
       "diffs": [
         {
           "type": "changed",
-          "location_a": { "page": 0, "x0": 0.0, "y0": 0.0, "x1": 1.0, "y1": 1.0 },
-          "location_b": { "page": 0, "x0": 0.0, "y0": 0.0, "x1": 1.0, "y1": 1.0 },
-          "description": "Page 1: text similarity 87.00%",
-          "payload": { "text_a": "...", "text_b": "...", "ratio": 0.87 }
+          "location_a": { "page": 0, "x0": 0.05, "y0": 0.10, "x1": 0.90, "y1": 0.15 },
+          "location_b": { "page": 0, "x0": 0.05, "y0": 0.10, "x1": 0.90, "y1": 0.15 },
+          "description": "Page 1 | block @(1,1): changed (similarity 72.00%)",
+          "payload": {
+            "text_a": "Original paragraph text.",
+            "text_b": "Modified paragraph text.",
+            "ratio": 0.72,
+            "bbox_a": [30.0, 80.0, 540.0, 120.0],
+            "bbox_b": [30.0, 80.0, 540.0, 120.0]
+          }
         }
       ],
       "meta": { "pages_a": 3, "pages_b": 3 }
@@ -66,13 +80,10 @@ python main.py doc_a.pdf doc_b.pdf --comparators text
 }
 ```
 
-Each `Diff` carries `location_a` / `location_b` with page index and normalised bounding-box coordinates (0–1) so a GUI can draw highlights directly on the rendered PDF.
-
 ## Adding a New Comparator
 
-1. Create `comparators/my_comparator.py`:
-
 ```python
+# comparators/my_comparator.py
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -84,20 +95,19 @@ class MyComparator(BaseComparator):
 
     def compare(self, pdf_a: str, pdf_b: str) -> ComparatorResult:
         diffs = []
-        # ... your logic ...
-        return ComparatorResult(comparator_id=self.comparator_id, similarity=1.0, diffs=diffs)
+        # populate diffs with Location objects for GUI overlays
+        return ComparatorResult(
+            comparator_id=self.comparator_id,
+            similarity=1.0,
+            diffs=diffs,
+        )
 ```
 
-2. Register it in `main.py`:
-
-```python
-from comparators.my_comparator import MyComparator
-engine.register(MyComparator())
-```
+Then in `main.py`: `engine.register(MyComparator())`
 
 ## Running Tests
 
 ```bash
-pip install pytest
+pip install pytest pdfminer.six
 pytest tests/
 ```

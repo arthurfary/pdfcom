@@ -1,6 +1,11 @@
-pdfplumber>=0.11.0
-pypdf>=4.0.0
+pdfminer.six>=20221105
+pdf2image>=1.17.0
+Pillow>=10.0.0
+numpy>=1.24.0
+# poppler must also be installed on the system:
+#   Ubuntu/Debian: apt install poppler-utils
+#   macOS:         brew install poppler
+#   Windows:       https://github.com/oschwartz10612/poppler-windows
+
 # Future comparators:
-# pdf2image>=1.17.0    # image comparator
-# Pillow>=10.0.0       # image comparator
-# imagehash>=4.3.1     # perceptual image hashing
+# imagehash>=4.3.1     # perceptual hashing (image comparator extension)
